@@ -1,0 +1,112 @@
+<!doctype html>
+<html lang="ja">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Desk Recipe Manager</title>
+  <link rel="stylesheet" href="css/style.css">
+</head>
+<body>
+  <div class="app" id="app">
+    <header class="topbar">
+      <h1>Desk Recipe Manager</h1>
+      <div class="actions">
+        <label class="btn">
+          画像を開く
+          <input type="file" id="fileInput" accept="image/*" hidden>
+        </label>
+        <label class="btn">
+          プロジェクトを開く
+          <input type="file" id="projectInput" accept=".json,application/json" hidden>
+        </label>
+        <button class="btn" id="saveProjectBtn" disabled>プロジェクト保存</button>
+        <button class="btn desktop-only" id="panelToggleBtn">パネルを隠す</button>
+        <button class="btn desktop-only" id="fullscreenBtn">全画面</button>
+        <button class="btn primary" id="exportBtn" disabled>PNGで書き出し</button>
+      </div>
+    </header>
+
+    <main class="layout">
+      <section class="stage" id="stage">
+        <div class="dropzone" id="dropzone">
+          <p class="dz-title">デスクの写真を選ぶ</p>
+          <p class="dz-sub">タップ・クリックして選択 / ドロップ / 貼り付け（Ctrl+V）</p>
+        </div>
+        <div class="canvas-wrap" id="canvasWrap" hidden>
+          <canvas id="canvas"></canvas>
+          <div class="text-popup" id="textPopup" hidden>
+            <textarea id="popupInput" rows="2" placeholder="機材名（改行も可）"></textarea>
+            <div class="popup-actions">
+              <button class="btn small" id="popupCancel">キャンセル</button>
+              <button class="btn small primary" id="popupOk">追加</button>
+            </div>
+          </div>
+        </div>
+        <p class="hint" id="hint" hidden>
+          機材をタップ → 名前を入力すると、ラベルと線が自動で付きます。ラベルと点はドラッグで移動できます。
+        </p>
+      </section>
+
+      <aside class="panel">
+        <section class="card">
+          <h2>選択中のラベル</h2>
+          <div id="editor" class="editor" hidden>
+            <textarea id="labelText" rows="2"></textarea>
+            <div class="row">
+              <button class="btn small" id="addAnchorBtn" title="このラベルから別の場所へ線を追加">線を追加</button>
+              <button class="btn small" id="removeAnchorBtn">最後の線を削除</button>
+              <button class="btn small danger" id="deleteLabelBtn">削除</button>
+            </div>
+          </div>
+          <p id="editorEmpty" class="muted">ラベルをタップすると編集できます。</p>
+        </section>
+
+        <section class="card">
+          <h2>ラベル一覧</h2>
+          <ol id="labelList" class="label-list"></ol>
+        </section>
+
+        <section class="card">
+          <h2>スタイル</h2>
+          <label class="field">文字サイズ
+            <input type="range" id="fontSize" min="8" max="120" step="1">
+            <output id="fontSizeOut"></output>
+          </label>
+          <label class="field">ラベルの色
+            <input type="color" id="labelColor">
+          </label>
+          <label class="field">ラベルの不透明度
+            <input type="range" id="labelOpacity" min="0.2" max="1" step="0.05">
+          </label>
+          <label class="field">文字色
+            <input type="color" id="textColor">
+          </label>
+          <label class="field">線の色
+            <input type="color" id="lineColor">
+          </label>
+          <label class="field">線の太さ
+            <input type="range" id="lineWidth" min="0.5" max="12" step="0.5">
+          </label>
+          <label class="field">線の形
+            <select id="lineShape">
+              <option value="curve">曲線</option>
+              <option value="straight">直線</option>
+            </select>
+          </label>
+          <label class="field">点の大きさ
+            <input type="range" id="dotSize" min="0" max="20" step="0.5">
+          </label>
+        </section>
+
+        <button class="btn small" id="undoBtn" disabled>元に戻す</button>
+        <p class="muted small desktop-only">
+          Delete: 選択ラベル削除 / 矢印キー: 微調整 / Ctrl+Z: 元に戻す
+        </p>
+      </aside>
+    </main>
+
+  </div>
+
+  <script src="js/app.js"></script>
+</body>
+</html>
