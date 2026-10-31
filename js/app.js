@@ -438,7 +438,16 @@
     els.removeAnchorBtn.disabled = l.anchors.length === 0;
   }
 
+  // スライダーの上限は画像の大きさに合わせる（高解像度の写真でも十分大きくできるように）
+  function updateRangeLimits() {
+    const long = Math.max(canvas.width, canvas.height);
+    els.fontSize.max = Math.max(200, Math.round(long * 0.1), style.fontSize);
+    els.lineWidth.max = Math.max(12, Math.round(long / 200), style.lineWidth);
+    els.dotSize.max = Math.max(20, Math.round(long / 150), style.dotSize);
+  }
+
   function syncStyleInputs() {
+    updateRangeLimits();
     els.fontSize.value = style.fontSize;
     els.fontSizeOut.value = style.fontSize;
     els.labelColor.value = style.labelColor;
