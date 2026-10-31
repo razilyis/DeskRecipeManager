@@ -34,6 +34,14 @@
         </div>
         <div class="canvas-wrap" id="canvasWrap" hidden>
           <canvas id="canvas"></canvas>
+          <div class="view-tools" aria-label="表示">
+            <button class="tool" id="rotateLeftBtn" title="左に90°回転" aria-label="左に90°回転">⟲</button>
+            <button class="tool" id="rotateRightBtn" title="右に90°回転" aria-label="右に90°回転">⟳</button>
+            <span class="tool-sep"></span>
+            <button class="tool" id="zoomOutBtn" title="縮小" aria-label="縮小">−</button>
+            <button class="tool zoom-level" id="zoomFitBtn" title="全体を表示"><span id="zoomLevel">100%</span></button>
+            <button class="tool" id="zoomInBtn" title="拡大" aria-label="拡大">＋</button>
+          </div>
           <div class="text-popup" id="textPopup" hidden>
             <textarea id="popupInput" rows="2" placeholder="機材名（改行も可）"></textarea>
             <div class="popup-actions">
@@ -43,7 +51,7 @@
           </div>
         </div>
         <p class="hint" id="hint" hidden>
-          機材をタップ → 名前を入力すると、ラベルと線が自動で付きます。ラベルと点はドラッグで移動できます。
+          機材をタップ → 名前を入力すると、ラベルと線が自動で付きます。ラベルと点はドラッグで移動。ピンチ／ホイールで拡大、空いた所をドラッグで表示を移動できます。
         </p>
       </section>
 

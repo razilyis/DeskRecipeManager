@@ -112,11 +112,10 @@ html, body {
   flex: 1;
   min-height: 0;
   width: 100%;
-  display: flex;
-  align-items: center;
-  justify-content: center;
+  overflow: hidden;
 }
 #canvas {
+  position: absolute;
   display: block;
   border-radius: 8px;
   box-shadow: 0 2px 12px rgba(0, 0, 0, 0.12);
@@ -126,6 +125,38 @@ html, body {
   user-select: none;
 }
 #canvas.over-item { cursor: move; }
+
+.view-tools {
+  position: absolute;
+  right: 8px;
+  bottom: 8px;
+  z-index: 5;
+  display: flex;
+  align-items: center;
+  gap: 2px;
+  padding: 3px;
+  background: rgba(255, 255, 255, 0.92);
+  border-radius: 999px;
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.18);
+}
+.tool {
+  min-width: 34px;
+  height: 34px;
+  padding: 0 6px;
+  border: none;
+  border-radius: 999px;
+  background: transparent;
+  color: var(--text);
+  font: inherit;
+  font-size: 18px;
+  line-height: 1;
+  cursor: pointer;
+  -webkit-tap-highlight-color: transparent;
+}
+.tool:hover:not(:disabled) { background: #f0ece5; }
+.tool:disabled { opacity: 0.35; cursor: default; }
+.tool.zoom-level { font-size: 12px; min-width: 48px; font-variant-numeric: tabular-nums; }
+.tool-sep { width: 1px; height: 20px; background: var(--border); margin: 0 2px; }
 
 .text-popup {
   position: absolute;

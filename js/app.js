@@ -4,6 +4,8 @@
   const FONT_FAMILY = '"Helvetica Neue", Arial, "Hiragino Sans", "Noto Sans JP", sans-serif';
   const HIT_TOLERANCE_CSS = { mouse: 10, pen: 14, touch: 22 }; // ドット判定の余裕（画面上のpx）
   const DOUBLE_TAP_MS = 350;
+  const TAP_SLOP_CSS = 6;     // これ以上動いたらタップではなくパン
+  const MAX_ZOOM = 8;
   const MOBILE_QUERY = window.matchMedia('(max-width: 800px)');
 
   const $ = (id) => document.getElementById(id);
@@ -14,6 +16,12 @@
     undoBtn: $('undoBtn'),
     panelToggleBtn: $('panelToggleBtn'),
     fullscreenBtn: $('fullscreenBtn'),
+    zoomInBtn: $('zoomInBtn'),
+    zoomOutBtn: $('zoomOutBtn'),
+    zoomFitBtn: $('zoomFitBtn'),
+    zoomLevel: $('zoomLevel'),
+    rotateLeftBtn: $('rotateLeftBtn'),
+    rotateRightBtn: $('rotateRightBtn'),
     fileInput: $('fileInput'),
     projectInput: $('projectInput'),
     saveProjectBtn: $('saveProjectBtn'),
@@ -45,7 +53,9 @@
   };
 
   // ---- 状態 ----
-  let image = null;          // HTMLImageElement
+  let sourceImage = null;    // 読み込んだ元画像（HTMLImageElement）
+  let image = null;          // 回転を反映した表示用画像（canvas）
+  let rotation = 0;          // 0 / 90 / 180 / 270（時計回り）
   let imageSrc = null;       // dataURL（プロジェクト保存用）
   let imageName = 'desk';
   let labels = [];           // { id, text, x, y, anchors: [{x, y}] }  x,y はラベル中心（画像座標）
@@ -57,6 +67,10 @@
   let pointerType = 'mouse';
   let lastTap = { id: null, time: 0 };
   let drag = null;           // { kind: 'label'|'anchor', label, anchorIndex, dx, dy, moved }
+  let pan = null;            // 何もない所を押した時：{ x, y, panX, panY, point, moved }
+  let pinch = null;          // 2本指：{ dist, zoom, imagePoint }
+  const pointers = new Map(); // pointerId -> { x, y }
+  const view = { base: 1, zoom: 1, panX: 0, panY: 0 }; // base: 全体表示の倍率（CSS px / 画像 px）
   let nextId = 1;
   const history = [];
 
@@ -75,7 +89,7 @@
 
   // ---- 履歴 ----
   function snapshot() {
-    return JSON.stringify({ labels, style });
+    return JSON.stringify({ labels, style, rotation });
   }
   function pushHistory() {
     history.push(snapshot());
@@ -88,6 +102,10 @@
     const data = JSON.parse(prev);
     labels = data.labels;
     style = data.style;
+    if ((data.rotation || 0) !== rotation) {
+      rotation = data.rotation || 0;
+      applyRotation();
+    }
     if (!findLabel(selectedId)) selectedId = null;
     els.undoBtn.disabled = history.length === 0;
     syncStyleInputs();
@@ -181,18 +199,104 @@
     return null;
   }
 
-  // ---- 表示サイズ ----
+  // ---- 表示サイズ・拡大縮小 ----
   // 画像の縦横比を保ったまま、PCでは作業領域いっぱいに、スマホでは画面幅いっぱいに表示する
   function fitCanvas() {
     if (!image) return;
     const wrap = els.canvasWrap;
+    const mobile = MOBILE_QUERY.matches;
+    if (!mobile) wrap.style.height = '';
     const availW = wrap.clientWidth;
-    const availH = MOBILE_QUERY.matches ? window.innerHeight * 0.72 : wrap.clientHeight;
+    const availH = mobile ? window.innerHeight * 0.72 : wrap.clientHeight;
     if (!availW || !availH) return;
-    const scale = Math.min(availW / canvas.width, availH / canvas.height);
-    canvas.style.width = `${Math.floor(canvas.width * scale)}px`;
-    canvas.style.height = `${Math.floor(canvas.height * scale)}px`;
+    view.base = Math.min(availW / canvas.width, availH / canvas.height);
+    if (mobile) wrap.style.height = `${Math.floor(canvas.height * view.base)}px`;
+    layoutCanvas();
+  }
+
+  // 拡大率とパン位置からキャンバスの表示位置を決める（はみ出さないように制限）
+  function layoutCanvas() {
+    const wrapW = els.canvasWrap.clientWidth;
+    const wrapH = els.canvasWrap.clientHeight;
+    const scale = view.base * view.zoom;
+    const w = canvas.width * scale;
+    const h = canvas.height * scale;
+    const maxX = Math.max(0, (w - wrapW) / 2);
+    const maxY = Math.max(0, (h - wrapH) / 2);
+    view.panX = clamp(view.panX, -maxX, maxX);
+    view.panY = clamp(view.panY, -maxY, maxY);
+    canvas.style.width = `${w}px`;
+    canvas.style.height = `${h}px`;
+    canvas.style.left = `${(wrapW - w) / 2 + view.panX}px`;
+    canvas.style.top = `${(wrapH - h) / 2 + view.panY}px`;
+    els.zoomLevel.textContent = `${Math.round(view.zoom * 100)}%`;
+    els.zoomOutBtn.disabled = view.zoom <= 1;
+    els.zoomInBtn.disabled = view.zoom >= MAX_ZOOM;
     render();
+  }
+
+  // 画面上の点 (clientX, clientY) に画像上の imagePoint が来るように拡大率を変える
+  function zoomTo(zoom, clientX, clientY, imagePoint) {
+    const wrapRect = els.canvasWrap.getBoundingClientRect();
+    view.zoom = clamp(zoom, 1, MAX_ZOOM);
+    const scale = view.base * view.zoom;
+    const left = clientX - wrapRect.left - imagePoint.x * scale;
+    const top = clientY - wrapRect.top - imagePoint.y * scale;
+    view.panX = left - (wrapRect.width - canvas.width * scale) / 2;
+    view.panY = top - (wrapRect.height - canvas.height * scale) / 2;
+    layoutCanvas();
+  }
+
+  function zoomAroundCenter(factor) {
+    const wrapRect = els.canvasWrap.getBoundingClientRect();
+    const cx = wrapRect.left + wrapRect.width / 2;
+    const cy = wrapRect.top + wrapRect.height / 2;
+    zoomTo(view.zoom * factor, cx, cy, eventToImage({ clientX: cx, clientY: cy }));
+  }
+
+  function resetView() {
+    view.zoom = 1;
+    view.panX = 0;
+    view.panY = 0;
+    layoutCanvas();
+  }
+
+  // ---- 回転 ----
+  function applyRotation() {
+    const w = sourceImage.naturalWidth;
+    const h = sourceImage.naturalHeight;
+    const swap = rotation % 180 !== 0;
+    const off = document.createElement('canvas');
+    off.width = swap ? h : w;
+    off.height = swap ? w : h;
+    const octx = off.getContext('2d');
+    octx.translate(off.width / 2, off.height / 2);
+    octx.rotate((rotation * Math.PI) / 180);
+    octx.drawImage(sourceImage, -w / 2, -h / 2);
+    image = off;
+    canvas.width = off.width;
+    canvas.height = off.height;
+    view.zoom = 1;
+    view.panX = 0;
+    view.panY = 0;
+    fitCanvas();
+  }
+
+  // dir: 1 = 時計回り, -1 = 反時計回り。ラベルと点も一緒に回す
+  function rotateImage(dir) {
+    if (!image) return;
+    pushHistory();
+    const w = canvas.width;
+    const h = canvas.height;
+    const turn = (p) => (dir > 0 ? { x: h - p.y, y: p.x } : { x: p.y, y: w - p.x });
+    for (const l of labels) {
+      Object.assign(l, turn(l));
+      l.anchors = l.anchors.map(turn);
+    }
+    rotation = (rotation + dir * 90 + 360) % 360;
+    closePopup();
+    applyRotation();
+    refresh();
   }
 
   // ---- 描画 ----
@@ -225,6 +329,7 @@
     ctx.strokeStyle = style.lineColor;
     ctx.lineWidth = style.lineWidth;
     ctx.lineCap = 'round';
+    ctx.lineJoin = 'round';
     ctx.shadowColor = 'rgba(0, 0, 0, 0.35)';
     ctx.shadowBlur = shadowBlur;
     for (const l of labels) {
@@ -233,8 +338,11 @@
         const { p0, c1, c2, p1 } = linePath(box, l, a);
         ctx.beginPath();
         ctx.moveTo(p0.x, p0.y);
-        if (style.lineShape === 'straight') ctx.lineTo(p1.x, p1.y);
-        else ctx.bezierCurveTo(c1.x, c1.y, c2.x, c2.y, p1.x, p1.y);
+        if (style.lineShape === 'straight') {
+          // 直線：ラベルから横（または縦）に出て、1回折れて点へ
+          ctx.lineTo(c1.x, c1.y);
+          ctx.lineTo(p1.x, p1.y);
+        } else ctx.bezierCurveTo(c1.x, c1.y, c2.x, c2.y, p1.x, p1.y);
         ctx.stroke();
       }
     }
@@ -426,6 +534,13 @@
   canvas.addEventListener('pointerdown', (e) => {
     if (!image || e.button !== 0) return;
     pointerType = e.pointerType || 'mouse';
+    pointers.set(e.pointerId, { x: e.clientX, y: e.clientY });
+    canvas.setPointerCapture(e.pointerId);
+    if (pointers.size === 2) {
+      startPinch();
+      return;
+    }
+    if (pointers.size > 2) return;
     if (!els.popup.hidden) {
       commitPopup();
       return;
@@ -445,20 +560,48 @@
 
     const hit = hitTest(p);
     if (!hit) {
-      selectedId = null;
-      refresh();
-      openPopup(p, e);
+      // 離した時に動いていなければ入力、動いていれば表示を移動
+      pan = { x: e.clientX, y: e.clientY, panX: view.panX, panY: view.panY, point: p, moved: false };
       return;
     }
     selectedId = hit.label.id;
     const target = hit.kind === 'anchor' ? hit.label.anchors[hit.anchorIndex] : hit.label;
     drag = { ...hit, dx: p.x - target.x, dy: p.y - target.y, moved: false };
-    canvas.setPointerCapture(e.pointerId);
     refresh();
   });
 
+  function pinchInfo() {
+    const [a, b] = [...pointers.values()];
+    return { dist: Math.hypot(a.x - b.x, a.y - b.y) || 1, x: (a.x + b.x) / 2, y: (a.y + b.y) / 2 };
+  }
+
+  function startPinch() {
+    if (drag && drag.moved) renderList();
+    drag = null;
+    pan = null;
+    const info = pinchInfo();
+    pinch = { dist: info.dist, zoom: view.zoom, imagePoint: eventToImage({ clientX: info.x, clientY: info.y }) };
+  }
+
   canvas.addEventListener('pointermove', (e) => {
     if (!image) return;
+    if (pointers.has(e.pointerId)) pointers.set(e.pointerId, { x: e.clientX, y: e.clientY });
+    if (pinch) {
+      if (pointers.size < 2) return;
+      const info = pinchInfo();
+      zoomTo(pinch.zoom * (info.dist / pinch.dist), info.x, info.y, pinch.imagePoint);
+      return;
+    }
+    if (pan) {
+      const dx = e.clientX - pan.x;
+      const dy = e.clientY - pan.y;
+      if (!pan.moved && Math.hypot(dx, dy) < TAP_SLOP_CSS) return;
+      pan.moved = true;
+      view.panX = pan.panX + dx;
+      view.panY = pan.panY + dy;
+      layoutCanvas();
+      return;
+    }
     const p = eventToImage(e);
     if (!drag) {
       canvas.classList.toggle('over-item', !addingAnchorTo && !!hitTest(p));
@@ -476,6 +619,23 @@
 
   // ラベルをダブルクリック／ダブルタップするとテキストを編集
   canvas.addEventListener('pointerup', (e) => {
+    pointers.delete(e.pointerId);
+    if (pinch) {
+      // 2本指を離し終えるまでは何もしない
+      if (pointers.size === 0) pinch = null;
+      return;
+    }
+    if (pan) {
+      const tap = !pan.moved;
+      const point = pan.point;
+      pan = null;
+      if (tap) {
+        selectedId = null;
+        refresh();
+        openPopup(point, e);
+      }
+      return;
+    }
     if (drag && !drag.moved && drag.kind === 'label') {
       const now = Date.now();
       if (lastTap.id === drag.label.id && now - lastTap.time < DOUBLE_TAP_MS) {
@@ -487,7 +647,20 @@
     }
     endDrag();
   });
-  canvas.addEventListener('pointercancel', endDrag);
+  canvas.addEventListener('pointercancel', (e) => {
+    pointers.delete(e.pointerId);
+    if (pointers.size === 0) pinch = null;
+    pan = null;
+    endDrag();
+  });
+
+  canvas.addEventListener('wheel', (e) => {
+    if (!image) return;
+    e.preventDefault();
+    const factor = Math.exp(-e.deltaY * (e.ctrlKey ? 0.01 : 0.0015));
+    zoomTo(view.zoom * factor, e.clientX, e.clientY, eventToImage(e));
+  }, { passive: false });
+
   function endDrag() {
     if (drag) renderList();
     drag = null;
@@ -630,6 +803,7 @@
     const img = await loadImage(src);
     if (labels.length && !confirm('現在のラベルを破棄して新しい画像を開きますか？')) return;
     imageName = (file.name || 'desk').replace(/\.[^.]+$/, '') || 'desk';
+    rotation = 0;
     setImage(img, src);
     labels = [];
     history.length = 0;
@@ -641,10 +815,8 @@
   }
 
   function setImage(img, src) {
-    image = img;
+    sourceImage = img;
     imageSrc = src;
-    canvas.width = img.naturalWidth;
-    canvas.height = img.naturalHeight;
     els.dropzone.hidden = true;
     els.canvasWrap.hidden = false;
     els.hint.hidden = false;
@@ -653,6 +825,7 @@
     els.undoBtn.disabled = true;
     addingAnchorTo = null;
     closePopup();
+    applyRotation();
     requestAnimationFrame(fitCanvas);
   }
 
@@ -705,7 +878,7 @@
   });
 
   els.saveProjectBtn.addEventListener('click', () => {
-    const data = { app: 'DeskRecipeManager', version: 1, imageName, imageSrc, style, labels };
+    const data = { app: 'DeskRecipeManager', version: 1, imageName, imageSrc, rotation, style, labels };
     download(new Blob([JSON.stringify(data)], { type: 'application/json' }), `${imageName}-recipe.json`);
   });
 
@@ -715,6 +888,7 @@
       if (!data.imageSrc || !Array.isArray(data.labels)) throw new Error('invalid');
       const img = await loadImage(data.imageSrc);
       imageName = data.imageName || 'desk';
+      rotation = [0, 90, 180, 270].includes(data.rotation) ? data.rotation : 0;
       setImage(img, data.imageSrc);
       labels = data.labels;
       style = { ...defaultStyle(img.naturalWidth), ...data.style };
@@ -735,6 +909,11 @@
 
   // ---- 画面まわり ----
   els.undoBtn.addEventListener('click', undo);
+  els.zoomInBtn.addEventListener('click', () => zoomAroundCenter(1.5));
+  els.zoomOutBtn.addEventListener('click', () => zoomAroundCenter(1 / 1.5));
+  els.zoomFitBtn.addEventListener('click', resetView);
+  els.rotateLeftBtn.addEventListener('click', () => rotateImage(-1));
+  els.rotateRightBtn.addEventListener('click', () => rotateImage(1));
 
   els.panelToggleBtn.addEventListener('click', () => {
     const hidden = els.app.classList.toggle('panel-hidden');
