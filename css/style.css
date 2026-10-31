@@ -1,0 +1,234 @@
+:root {
+  --bg: #f4f1ec;
+  --panel: #ffffff;
+  --text: #2a2723;
+  --muted: #8a837a;
+  --border: #e2dcd2;
+  --accent: #3b6ea8;
+  --danger: #c0443a;
+  --panel-width: 300px;
+}
+
+* { box-sizing: border-box; }
+[hidden] { display: none !important; }
+
+html, body {
+  margin: 0;
+  height: 100%;
+  background: var(--bg);
+  color: var(--text);
+  font-family: "Helvetica Neue", Arial, "Hiragino Sans", "Noto Sans JP", sans-serif;
+  font-size: 14px;
+  -webkit-text-size-adjust: 100%;
+}
+
+/* PC：画面全体を使うレイアウト */
+.app {
+  display: flex;
+  flex-direction: column;
+  height: 100vh;
+  height: 100dvh;
+  background: var(--bg);
+}
+
+.topbar {
+  flex: none;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  padding: 8px 12px;
+  background: var(--panel);
+  border-bottom: 1px solid var(--border);
+}
+.topbar h1 { margin: 0; font-size: 17px; font-weight: 600; white-space: nowrap; }
+.actions { display: flex; gap: 6px; flex-wrap: wrap; justify-content: flex-end; }
+
+.btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-height: 34px;
+  padding: 6px 14px;
+  border: 1px solid var(--border);
+  border-radius: 999px;
+  background: #fff;
+  color: var(--text);
+  font: inherit;
+  cursor: pointer;
+  white-space: nowrap;
+  -webkit-tap-highlight-color: transparent;
+}
+.btn:hover:not(:disabled) { background: #f7f4ef; }
+.btn:disabled { opacity: 0.45; cursor: default; }
+.btn.primary { background: var(--accent); border-color: var(--accent); color: #fff; }
+.btn.primary:hover:not(:disabled) { background: #2f5d91; }
+.btn.danger { color: var(--danger); border-color: #ecc9c5; }
+.btn.small { min-height: 30px; padding: 4px 12px; font-size: 13px; }
+.btn.active { background: var(--accent); border-color: var(--accent); color: #fff; }
+
+.layout {
+  flex: 1;
+  min-height: 0;
+  display: grid;
+  grid-template-columns: 1fr var(--panel-width);
+  gap: 12px;
+  padding: 12px;
+}
+.app.panel-hidden .layout { grid-template-columns: 1fr; }
+.app.panel-hidden .panel { display: none; }
+
+.stage {
+  position: relative;
+  min-width: 0;
+  min-height: 0;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+}
+
+.dropzone {
+  width: 100%;
+  height: 100%;
+  min-height: 240px;
+  border: 2px dashed var(--border);
+  border-radius: 16px;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+  text-align: center;
+  padding: 16px;
+}
+.dropzone.over { border-color: var(--accent); background: #eef3f9; }
+.dz-title { font-size: 20px; margin: 0 0 6px; }
+.dz-sub { color: var(--muted); margin: 0; }
+
+.canvas-wrap {
+  position: relative;
+  flex: 1;
+  min-height: 0;
+  width: 100%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+#canvas {
+  display: block;
+  border-radius: 8px;
+  box-shadow: 0 2px 12px rgba(0, 0, 0, 0.12);
+  cursor: crosshair;
+  touch-action: none;
+  -webkit-user-select: none;
+  user-select: none;
+}
+#canvas.over-item { cursor: move; }
+
+.text-popup {
+  position: absolute;
+  z-index: 10;
+  width: 260px;
+  padding: 8px;
+  background: #fff;
+  border-radius: 12px;
+  box-shadow: 0 4px 18px rgba(0, 0, 0, 0.25);
+}
+.text-popup textarea {
+  width: 100%;
+  resize: vertical;
+  font: inherit;
+  font-size: 16px; /* iOSで入力時に拡大されないように */
+  padding: 6px 8px;
+  border: 1px solid var(--border);
+  border-radius: 8px;
+}
+.popup-actions { display: flex; justify-content: flex-end; gap: 6px; margin-top: 6px; }
+
+.hint { flex: none; color: var(--muted); margin: 0; text-align: center; font-size: 13px; }
+
+.panel {
+  min-height: 0;
+  overflow-y: auto;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+.card {
+  background: var(--panel);
+  border: 1px solid var(--border);
+  border-radius: 12px;
+  padding: 12px;
+}
+.card h2 { font-size: 14px; margin: 0 0 8px; }
+.editor { display: flex; flex-direction: column; gap: 8px; }
+.editor textarea {
+  width: 100%;
+  font: inherit;
+  font-size: 16px;
+  padding: 6px 8px;
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  resize: vertical;
+}
+.row { display: flex; gap: 6px; flex-wrap: wrap; }
+.muted { color: var(--muted); margin: 0; }
+.small { font-size: 12px; }
+
+.label-list { margin: 0; padding-left: 22px; max-height: 220px; overflow-y: auto; }
+.label-list li {
+  padding: 5px 4px;
+  border-radius: 4px;
+  cursor: pointer;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.label-list li:hover { background: #f7f4ef; }
+.label-list li.selected { background: #e6eef7; }
+
+.field {
+  display: grid;
+  grid-template-columns: 110px 1fr auto;
+  align-items: center;
+  gap: 6px;
+  margin-bottom: 8px;
+  font-size: 13px;
+}
+.field input[type="range"], .field select { width: 100%; }
+.field output { font-size: 12px; color: var(--muted); min-width: 28px; text-align: right; }
+
+/* スマホ：画像を上に、操作パネルを下に縦積み */
+@media (max-width: 800px) {
+  .desktop-only { display: none !important; }
+  .app { height: auto; min-height: 100dvh; }
+  .topbar { flex-direction: column; align-items: stretch; }
+  .topbar h1 { font-size: 15px; text-align: center; }
+  /* 2列のボタン：よく使う「画像を開く」「PNGで書き出し」を上段に */
+  .actions { display: grid; grid-template-columns: 1fr 1fr; }
+  .actions > * { order: 2; min-height: 40px; }
+  .actions > :first-child { order: 0; }
+  .actions #exportBtn { order: 1; }
+  .layout { display: flex; flex-direction: column; padding: 8px; gap: 8px; }
+  .stage { flex: none; }
+  .dropzone { min-height: 50vh; }
+  .canvas-wrap { flex: none; }
+  #canvas { border-radius: 6px; }
+
+  /* テキスト入力はキーボードの上に出る下部シート */
+  .text-popup {
+    position: fixed;
+    left: 0 !important;
+    right: 0;
+    top: auto !important;
+    bottom: 0;
+    width: auto;
+    border-radius: 14px 14px 0 0;
+    padding: 12px 12px calc(12px + env(safe-area-inset-bottom));
+  }
+  .popup-actions .btn { min-height: 40px; padding: 6px 20px; font-size: 15px; }
+  .editor .btn.small { min-height: 38px; font-size: 14px; }
+  .field { grid-template-columns: 100px 1fr auto; }
+}
